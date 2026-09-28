@@ -3625,38 +3625,6 @@ char *sofia_glue_get_host_from_cfg(const char *uri, switch_memory_pool_t *pool)
 	return host;
 }
 
-switch_bool_t sofia_glue_nh_belongs_to_session(private_object_t *tech_pvt, switch_core_session_t *session)
-{
-	sofia_private_t *magic;
-	const char *session_uuid;
-	const char *handle_uuid;
-
-	if (!tech_pvt || !tech_pvt->nh || !session) {
-		return SWITCH_FALSE;
-	}
-
-	magic = nua_handle_magic(tech_pvt->nh);
-	if (!magic || magic == &mod_sofia_globals.destroy_private || magic == &mod_sofia_globals.keep_private) {
-		return SWITCH_FALSE;
-	}
-
-	if (tech_pvt->sofia_private && magic != tech_pvt->sofia_private) {
-		return SWITCH_FALSE;
-	}
-
-	session_uuid = switch_core_session_get_uuid(session);
-	handle_uuid = magic->uuid;
-	if (zstr(handle_uuid)) {
-		handle_uuid = magic->uuid_str;
-	}
-
-	if (zstr(session_uuid) || zstr(handle_uuid) || strcmp(handle_uuid, session_uuid)) {
-		return SWITCH_FALSE;
-	}
-
-	return SWITCH_TRUE;
-}
-
 /* For Emacs:
  * Local Variables:
  * mode:c
