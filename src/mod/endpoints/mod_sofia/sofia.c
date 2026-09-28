@@ -582,7 +582,6 @@ void sofia_handle_sip_i_notify(switch_core_session_t *session, int status,
 	switch_event_t *s_event = NULL;
 	sofia_gateway_subscription_t *gw_sub_ptr;
 	int sub_state;
-	int keep_call_dialog = 0;
 	sofia_gateway_t *gateway = NULL;
 	const char *session_id_header = sofia_glue_session_id_header(session, profile);
 
@@ -691,9 +690,6 @@ void sofia_handle_sip_i_notify(switch_core_session_t *session, int status,
 					if (status_val == 200 && !switch_channel_var_true(channel, "sip_refer_continue_after_reply")) {
 						switch_channel_hangup(channel, SWITCH_CAUSE_BLIND_TRANSFER);
 					}
-					if (status_val >= 300) {
-						keep_call_dialog = 1;
-					}
 					if ((int)tech_pvt->want_event == 9999) {
 						tech_pvt->want_event = 0;
 					}
@@ -704,7 +700,6 @@ void sofia_handle_sip_i_notify(switch_core_session_t *session, int status,
 					   switch_stristr("terminated", sip->sip_subscription_state->ss_substate)) {
 				switch_channel_set_variable(channel, "sip_refer_target_status_code", "503");
 				switch_channel_set_variable(channel, "sip_refer_reply", "SIP/2.0 503 Refer subscription terminated\r\n");
-				keep_call_dialog = 1;
 				if ((int)tech_pvt->want_event == 9999) {
 					tech_pvt->want_event = 0;
 				}
@@ -901,9 +896,10 @@ void sofia_handle_sip_i_notify(switch_core_session_t *session, int status,
 
   end:
 
-	if (!keep_call_dialog && !gateway && sub_state == nua_substate_terminated && sofia_private &&
+	if (!gateway && sub_state == nua_substate_terminated && sofia_private &&
 		sofia_private != &mod_sofia_globals.destroy_private &&
-		sofia_private != &mod_sofia_globals.keep_private) {
+		sofia_private != &mod_sofia_globals.keep_private &&
+		!sofia_private->is_call) {
 		sofia_private->destroy_nh = 1;
 		sofia_private->destroy_me = 1;
 	}
@@ -2172,9 +2168,6 @@ static void our_sofia_event_callback(nua_event_t event,
 	case nua_i_notify:
 
 		if (sip && sip->sip_event && !strcmp(sip->sip_event->o_type, "dialog") && sip->sip_event->o_params && !strcmp(sip->sip_event->o_params[0], "sla")) {
-			check_destroy = 0;
-		}
-		if (sip && sip->sip_event && !strcasecmp(sip->sip_event->o_type, "refer") && session) {
 			check_destroy = 0;
 		}
 
