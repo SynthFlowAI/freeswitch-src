@@ -487,6 +487,13 @@ switch_status_t sofia_on_hangup(switch_core_session_t *session)
 
 	if (sofia_test_pflag(tech_pvt->profile, PFLAG_DESTROY)) {
 		sofia_set_flag(tech_pvt, TFLAG_BYE);
+	} else if (tech_pvt->nh && !sofia_test_flag(tech_pvt, TFLAG_BYE) &&
+			   !sofia_glue_nh_belongs_to_session(tech_pvt, session)) {
+		/* nua_bye on an early INVITE handle is sent as 486; refuse if nh is not this call. */
+		switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR,
+						  "Not sending SIP hangup on %s: nua handle belongs to another session\n",
+						  switch_channel_get_name(channel));
+		sofia_set_flag_locked(tech_pvt, TFLAG_BYE);
 	} else if (tech_pvt->nh && !sofia_test_flag(tech_pvt, TFLAG_BYE)) {
 		char *reason = switch_core_session_sprintf(session, "");
 		char *bye_headers = sofia_glue_get_extra_headers(channel, SOFIA_SIP_BYE_HEADER_PREFIX);
@@ -1576,6 +1583,10 @@ static switch_status_t sofia_receive_message(switch_core_session_t *session, swi
 			switch_set_string(ref_to, msg->string_arg);
 		}
 
+		/* Previous REFER sipfrag must not be reported for this attempt. */
+		switch_channel_set_variable(tech_pvt->channel, "sip_refer_reply", NULL);
+		switch_channel_set_variable(tech_pvt->channel, "sip_refer_status_code", NULL);
+
 		nua_refer(tech_pvt->nh, SIPTAG_REFER_TO_STR(ref_to), SIPTAG_REFERRED_BY_STR(tech_pvt->contact_url),
 				  TAG_IF(!zstr(extra_headers), SIPTAG_HEADER_STR(extra_headers)),
 				  TAG_IF(!zstr(session_id_header), SIPTAG_HEADER_STR(session_id_header)),
@@ -1584,7 +1595,7 @@ static switch_status_t sofia_receive_message(switch_core_session_t *session, swi
 
 		if (msg->string_array_arg[0]) {
 			tech_pvt->proxy_refer_uuid = (char *)msg->string_array_arg[0];
-		} else if (!switch_channel_var_true(tech_pvt->channel, "sip_refer_continue_after_reply")) {
+		} else {
 			uint32_t refer_notify_timeout = tech_pvt->profile->refer_notify_timeout;
 			const char *timeout_var;
 
@@ -1626,7 +1637,8 @@ static switch_status_t sofia_receive_message(switch_core_session_t *session, swi
 					msg->string_reply = "no reply";
 				}
 
-				if (refer_status < 300) {
+				/* continue-after-reply keeps the caller up after a failed cold transfer. */
+				if (refer_status < 300 && !switch_channel_var_true(tech_pvt->channel, "sip_refer_continue_after_reply")) {
 					switch_channel_hangup(tech_pvt->channel, SWITCH_CAUSE_BLIND_TRANSFER);
 				}
 			}
