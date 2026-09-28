@@ -897,7 +897,8 @@ void sofia_handle_sip_i_notify(switch_core_session_t *session, int status,
   end:
 
 	if (!gateway && sub_state == nua_substate_terminated && sofia_private && sofia_private != &mod_sofia_globals.destroy_private &&
-		sofia_private != &mod_sofia_globals.keep_private) {
+		sofia_private != &mod_sofia_globals.keep_private &&
+		!sofia_private->is_call) {
 		sofia_private->destroy_nh = 1;
 		sofia_private->destroy_me = 1;
 	}
@@ -2192,9 +2193,6 @@ static void our_sofia_event_callback(nua_event_t event,
 	case nua_i_notify:
 
 		if (sip && sip->sip_event && !strcmp(sip->sip_event->o_type, "dialog") && sip->sip_event->o_params && !strcmp(sip->sip_event->o_params[0], "sla")) {
-			check_destroy = 0;
-		}
-		if (sip && sip->sip_event && !strcasecmp(sip->sip_event->o_type, "refer") && session) {
 			check_destroy = 0;
 		}
 
