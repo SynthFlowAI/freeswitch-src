@@ -1584,9 +1584,10 @@ static switch_status_t sofia_receive_message(switch_core_session_t *session, swi
 
 		if (msg->string_array_arg[0]) {
 			tech_pvt->proxy_refer_uuid = (char *)msg->string_array_arg[0];
-		} else if (!switch_channel_var_true(tech_pvt->channel, "sip_refer_continue_after_reply")) {
+		} else {
 			uint32_t refer_notify_timeout = tech_pvt->profile->refer_notify_timeout;
 			const char *timeout_var;
+			int continue_after_reply = switch_channel_var_true(tech_pvt->channel, "sip_refer_continue_after_reply");
 
 			if (refer_notify_timeout < 1) {
 				refer_notify_timeout = SOFIA_DEFAULT_REFER_NOTIFY_TIMEOUT;
@@ -1626,7 +1627,7 @@ static switch_status_t sofia_receive_message(switch_core_session_t *session, swi
 					msg->string_reply = "no reply";
 				}
 
-				if (refer_status < 300) {
+				if (refer_status < 300 && !continue_after_reply) {
 					switch_channel_hangup(tech_pvt->channel, SWITCH_CAUSE_BLIND_TRANSFER);
 				}
 			}
